@@ -41,7 +41,8 @@ const $=id=>document.getElementById(id);
 const colors={player:'#43b98b',enemy:'#c96858',neutral:'#526e7b',water:'#18313c',gold:'#d8b966'};
 const nationOptions={Veridia:{color:'#43b98b',flag:'V'},Aurora:{color:'#5b9fe0',flag:'A'},Ember:{color:'#d96a58',flag:'E'}};
 const W=360,H=180;let tiles=[],selected=null,player='Veridia',running=false,gameOver=false,seconds=0,timer=null,lastTick=0,worldFeatures=[],mapReady=false;
-let troops=12000,gold=250000,cities=1,factories=0,ports=0,enemyCount=0,logs=[];\nlet mapZoom=1,mapPanX=0,mapPanY=0,dragState=null,dragMoved=false;const MIN_ZOOM=1,MAX_ZOOM=8;
+let troops=12000,gold=250000,cities=1,factories=0,ports=0,enemyCount=0,logs=[];
+let mapZoom=1,mapPanX=0,mapPanY=0,dragState=null,dragMoved=false;const MIN_ZOOM=1,MAX_ZOOM=8;
 const tileKey=(x,y)=>y*W+x;
 function fallbackLand(){return false;}
 function initMap(){
