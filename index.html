@@ -31,6 +31,7 @@
 <section class="panel"><h2>◷ Relatório de campanha</h2><div class="log" id="log"><div>Aguardando ordens do comandante.</div></div></section>
 </aside></div><div class="footer">ROFRONT FAN PROTOTYPE · PROJETO INDEPENDENTE · NÃO OFICIAL</div>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-geo@3"></script>
 <script>
 (() => {
 'use strict';
@@ -46,7 +47,7 @@ function initMap(){
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
   const lon=-180+(x+.5)/W*360,lat=90-(y+.5)/H*180;
   let country=null;
-  for(const feature of worldFeatures){if(topojson.geoContains(feature,[lon,lat])){country=feature.id??feature.properties?.name??'land';break;}}
+  for(const feature of worldFeatures){if(d3.geoContains(feature,[lon,lat])){country=feature.id??feature.properties?.name??'land';break;}}
   tiles.push({x,y,land:!!country,country,owner:null,troops:0,capital:false,city:false,factory:false,port:false,adj:[]});
  }
  for(const t of tiles){t.adj=[[t.x-1,t.y],[t.x+1,t.y],[t.x,t.y-1],[t.x,t.y+1]].filter(([x,y])=>x>=0&&y>=0&&x<W&&y<H).map(([x,y])=>tiles[tileKey(x,y)]);}
