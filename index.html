@@ -42,17 +42,14 @@ const nationOptions={Veridia:{color:'#43b98b',flag:'V'},Aurora:{color:'#5b9fe0',
 const W=360,H=180;let tiles=[],selected=null,player='Veridia',running=false,gameOver=false,seconds=0,timer=null,lastTick=0,worldFeatures=[],mapReady=false;
 let troops=12000,gold=250000,cities=1,factories=0,ports=0,enemyCount=0,logs=[];
 const tileKey=(x,y)=>y*W+x;
-function fallbackLand(lon,lat){
- const ellipses=[[-105,48,48,28],[-72,-15,23,42],[-42,72,23,12],[-8,48,27,18],[22,5,24,38],[65,47,65,30],[105,12,43,27],[135,-25,19,13],[48,-20,10,20],[-150,-8,20,15]];
- return ellipses.some(([cx,cy,rx,ry])=>((lon-cx)/rx)**2+((lat-cy)/ry)**2<1)&&lat>-60&&lat<83;
-}
+function fallbackLand(){return false;}
 function initMap(){
  tiles=[];
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
   const lon=-180+(x+.5)/W*360,lat=90-(y+.5)/H*180;
   let country=null;
   if(worldFeatures.length&&typeof d3!=='undefined'&&d3.geoContains){for(const feature of worldFeatures){if(d3.geoContains(feature,[lon,lat])){country=feature.id??feature.properties?.name??'land';break;}}}
-  else if(fallbackLand(lon,lat))country='land';
+  
   tiles.push({x,y,land:!!country,country,owner:null,troops:0,capital:false,city:false,factory:false,port:false,adj:[]});
  }
  for(const t of tiles){t.adj=[[t.x-1,t.y],[t.x+1,t.y],[t.x,t.y-1],[t.x,t.y+1]].filter(([x,y])=>x>=0&&y>=0&&x<W&&y<H).map(([x,y])=>tiles[tileKey(x,y)]);}
@@ -113,12 +110,12 @@ function update(){
  }else $('selection').textContent='Inicie a campanha e selecione um território no mapa.';
  draw();
 }
-function start(){if(running)return;if(!mapReady){worldFeatures=[];initMap();mapReady=true;addLog('Mapa alternativo carregado para permitir iniciar sem esperar pelos dados externos.');}running=true;gameOver=false;seconds=0;troops=12000;gold=250000;cities=1;factories=0;ports=0;logs=[];enemyCount=5;
+function start(){if(running)return;if(!mapReady){addLog('Aguarde o carregamento dos dados geográficos reais.');return;}running=true;gameOver=false;seconds=0;troops=12000;gold=250000;cities=1;factories=0;ports=0;logs=[];enemyCount=5;
  initMap();
  const cap=placeNation(-52,-10,'player');placeNation(-100,40,'enemy');placeNation(10,50,'enemy');placeNation(105,35,'enemy');placeNation(25,-29,'enemy');placeNation(135,-25,'enemy');
- if(!cap){running=false;addLog('Não foi possível inicializar o mapa.');return;}
+ if(!cap){running=false;addLog('Não foi possível iniciar: os dados geográficos reais não foram carregados.');$('startOverlay').style.display='grid';return;}
  cap.owner='player';cap.capital=true;cap.troops=troops;cap.city=true;selected=cap;
- $('startOverlay').style.display='none';addLog('Capital fundada no Brasil. Cada quadrado é um território conquistável.');addLog('Conquiste territórios vizinhos, enfrente rivais e controle 80% das terras habitáveis.');lastTick=Date.now();update();if(timer)clearInterval(timer);timer=setInterval(tick,1000);}
+ $('startOverlay').style.display='none';addLog('Capital fundada no Brasil. Os territórios seguem os contornos geográficos reais.');addLog('Conquiste territórios vizinhos, enfrente rivais e controle 80% das terras habitáveis.');lastTick=Date.now();update();if(timer)clearInterval(timer);timer=setInterval(tick,1000);}
 function expand(){if(!selected||selected.owner||!selected.land||!reachable(selected)||troops<1000)return;troops-=1000;selected.owner='player';selected.troops=500;addLog('Novo território anexado à sua nação.');checkWin();update();}
 function attack(){if(!selected||selected.owner!=='enemy'||!reachable(selected)||troops<2000)return;const sent=Math.floor(troops*.35);troops-=sent;const defenders=selected.troops;const power=sent*(.75+Math.random()*.55),def=defenders*(.7+Math.random()*.55);
  if(power>def){selected.owner='player';selected.troops=Math.max(250,Math.floor(sent-defenders*.35));selected.capital=false;addLog('Vitória militar! Território rival conquistado.');}else{selected.troops=Math.max(0,Math.floor(defenders-sent*.5));addLog('Ataque repelido. Reúna tropas antes de tentar novamente.');}
@@ -135,6 +132,7 @@ function clickMap(ev){if(!running)return;const r=canvas.getBoundingClientRect(),
 function wireNation(){document.querySelectorAll('[data-nation]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-nation]').forEach(n=>n.classList.remove('active'));b.classList.add('active');player=b.dataset.nation;});}
 $('startBtn').onclick=start;$('expandBtn').onclick=expand;$('attackBtn').onclick=attack;$('cityBtn').onclick=()=>build('city',100000);$('factoryBtn').onclick=()=>build('factory',150000);$('portBtn').onclick=()=>build('port',120000);$('passBtn').onclick=()=>{for(let i=0;i<6;i++)tick();};$('restartTop').onclick=()=>{if(timer)clearInterval(timer);running=false;gameOver=false;selected=null;$('startOverlay').style.display='grid';$('startOverlay').innerHTML='<div class="modal"><h1>RO<span style="color:var(--gold)">FRONT</span></h1><p>Escolha seu ponto de partida. Expanda suas fronteiras, construa sua economia e conquiste o mundo.</p><div class="sectionlabel">ESCOLHA SUA NAÇÃO</div><div class="countryselect"><button data-nation="Veridia" class="active">🟩 Veridia</button><button data-nation="Aurora">🟦 Aurora</button><button data-nation="Ember">🟥 Ember</button></div><button class="primary" id="startBtn">INICIAR CAMPANHA →</button></div>';wireNation();$('startBtn').onclick=start;initMap();update();};
 canvas.addEventListener('click',clickMap);window.addEventListener('resize',resize);wireNation();$('startBtn').disabled=true;$('startBtn').textContent='CARREGANDO MAPA REAL…';resize();update();
-fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json').then(r=>{if(!r.ok)throw new Error('Falha ao baixar dados geográficos');return r.json();}).then(topology=>{if(running)return;worldFeatures=topojson.feature(topology,topology.objects.countries).features;mapReady=true;initMap();$('startBtn').disabled=false;$('startBtn').textContent='INICIAR CAMPANHA →';resize();update();}).catch(err=>{console.error('Mapa real indisponível; será usado o mapa alternativo.',err);if(!running){worldFeatures=[];mapReady=true;initMap();resize();}$('startBtn').disabled=false;$('startBtn').textContent='INICIAR CAMPANHA →';$('selection').textContent='Dados geográficos indisponíveis; a campanha poderá começar com o mapa alternativo.';});
+function activateMap(features){if(running)return;worldFeatures=features;mapReady=true;initMap();$('startBtn').disabled=false;$('startBtn').textContent='INICIAR CAMPANHA →';$('selection').textContent='Mapa geográfico real carregado. Inicie a campanha.';resize();update();}
+fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json').then(r=>{if(!r.ok)throw new Error('Falha ao baixar world-atlas');return r.json();}).then(topology=>{if(typeof topojson==='undefined'||typeof d3==='undefined')throw new Error('Bibliotecas geográficas indisponíveis');activateMap(topojson.feature(topology,topology.objects.countries).features);}).catch(err=>{console.warn('Primeira fonte geográfica falhou; tentando GeoJSON real.',err);fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson').then(r=>{if(!r.ok)throw new Error('Falha ao baixar GeoJSON');return r.json();}).then(data=>{if(typeof d3==='undefined')throw new Error('Biblioteca d3-geo indisponível');activateMap(data.features);}).catch(fallbackErr=>{console.error('Não foi possível carregar dados geográficos reais.',fallbackErr);$('startBtn').disabled=true;$('startBtn').textContent='MAPA INDISPONÍVEL';$('selection').textContent='Não foi possível carregar os contornos reais. Verifique a conexão e recarregue a página.';});});
 })();
 </script></body></html>
