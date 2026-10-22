@@ -45,12 +45,18 @@ const tileKey=(x,y)=>y*W+x;
 function fallbackLand(){return false;}
 function initMap(){
  tiles=[];
+ // Pré-calcula limites de cada país para evitar chamadas geoContains desnecessárias.
+ const bounds=(worldFeatures.length&&typeof d3!=='undefined'&&d3.geoBounds)?worldFeatures.map(feature=>({feature,b:d3.geoBounds(feature)})):[];
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
   const lon=-180+(x+.5)/W*360,lat=90-(y+.5)/H*180;
   let country=null;
-  if(worldFeatures.length&&typeof d3!=='undefined'&&d3.geoContains){for(const feature of worldFeatures){if(d3.geoContains(feature,[lon,lat])){country=feature.id??feature.properties?.name??'land';break;}}}
-  
-  tiles.push({x,y,land:!!country,country,owner:null,troops:0,capital:false,city:false,factory:false,port:false,adj:[]});
+  for(const item of bounds){
+   const [[minLon,minLat],[maxLon,maxLat]]=item.b;
+   if(lat<minLat||lat>maxLat)continue;
+   const inLon=minLon<=maxLon?(lon>=minLon&&lon<=maxLon):(lon>=minLon||lon<=maxLon);
+   if(inLon&&d3.geoContains(item.feature,[lon,lat])){country=item.feature.id??item.feature.properties?.name??'land';break;}
+  }
+  tiles.push({x,y,land:country!==null,country,owner:null,troops:0,capital:false,city:false,factory:false,port:false,adj:[]});
  }
  for(const t of tiles){t.adj=[[t.x-1,t.y],[t.x+1,t.y],[t.x,t.y-1],[t.x,t.y+1]].filter(([x,y])=>x>=0&&y>=0&&x<W&&y<H).map(([x,y])=>tiles[tileKey(x,y)]);}
 }
