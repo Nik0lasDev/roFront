@@ -112,44 +112,54 @@ const canvas=document.getElementById('world'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
 const colors={player:'#43b98b',enemy:'#c96858',neutral:'#526e7b',water:'#18313c',gold:'#d8b966'};
 const nationOptions={Veridia:{color:'#43b98b',flag:'V'},Aurora:{color:'#5b9fe0',flag:'A'},Ember:{color:'#d96a58',flag:'E'}};
-const W=360,H=180;let tiles=[],selected=null,player='Veridia',running=false,gameOver=false,seconds=0,timer=null,lastTick=0,worldFeatures=[],mapReady=false;
+const BASE_W=360,BASE_H=180,SUBDIV=3,W=BASE_W*SUBDIV,H=BASE_H*SUBDIV;let tiles=[],selected=null,player='Veridia',running=false,gameOver=false,seconds=0,timer=null,lastTick=0,worldFeatures=[],mapReady=false;
 let troops=12000,gold=250000,cities=1,factories=0,ports=0,enemyCount=0,logs=[];
 let mapZoom=1,mapPanX=0,mapPanY=0,dragState=null,dragMoved=false;const MIN_ZOOM=1,MAX_ZOOM=8;
 const tileKey=(x,y)=>y*W+x;
-const MAP_CACHE_KEY='rofront-prepared-map-v1';
-function readCachedGrid(){
+const MAP_CACHE_KEY='rofront-prepared-map-v2';
+const LEGACY_MAP_CACHE_KEY='rofront-prepared-map-v1';
+function readGridCache(key,length){
  try{
-  const grid=JSON.parse(localStorage.getItem(MAP_CACHE_KEY)||'null');
-  if(Array.isArray(grid)&&grid.length===W*H&&grid.every(v=>v===null||typeof v==='string'))return grid;
+  const grid=JSON.parse(localStorage.getItem(key)||'null');
+  if(Array.isArray(grid)&&grid.length===length&&grid.every(v=>v===null||typeof v==='string')&&grid.some(v=>typeof v==='string'))return grid;
  }catch(err){console.warn('Cache local do mapa indisponível; será reconstruído.',err);}
  return null;
 }
-function buildAdjacency(){
- for(const t of tiles){t.adj=[[t.x-1,t.y],[t.x+1,t.y],[t.x,t.y-1],[t.x,t.y+1]].filter(([x,y])=>x>=0&&y>=0&&x<W&&y<H).map(([x,y])=>tiles[tileKey(x,y)]);}
+function readCachedGrid(){return readGridCache(MAP_CACHE_KEY,W*H);}
+function adjacentTiles(t){
+ const out=[];
+ if(t.x>0)out.push(tiles[tileKey(t.x-1,t.y)]);
+ if(t.x+1<W)out.push(tiles[tileKey(t.x+1,t.y)]);
+ if(t.y>0)out.push(tiles[tileKey(t.x,t.y-1)]);
+ if(t.y+1<H)out.push(tiles[tileKey(t.x,t.y+1)]);
+ return out;
 }
 function initMap(){
- const cached=readCachedGrid();
- if(cached){
-  tiles=cached.map((country,i)=>({x:i%W,y:Math.floor(i/W),land:country!==null,country,owner:null,troops:0,capital:false,city:false,factory:false,port:false,adj:[]}));
-  buildAdjacency();
-  return;
+ let grid=readCachedGrid();
+ if(!grid){
+  // Migra o mapa antigo sem baixar nem rasterizar novamente os dados geográficos.
+  const legacy=readGridCache(LEGACY_MAP_CACHE_KEY,BASE_W*BASE_H);
+  if(legacy)grid=Array.from({length:W*H},(_,i)=>legacy[Math.floor(Math.floor(i/W)/SUBDIV)*BASE_W+Math.floor((i%W)/SUBDIV)]);
  }
- tiles=[];
- // Pré-calcula os contornos reais uma única vez e salva a grade resultante para as próximas aberturas.
- const bounds=(worldFeatures.length&&typeof d3!=='undefined'&&d3.geoBounds)?worldFeatures.map(feature=>({feature,b:d3.geoBounds(feature)})):[];
- for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-  const lon=-180+(x+.5)/W*360,lat=90-(y+.5)/H*180;
-  let country=null;
-  for(const item of bounds){
-   const [[minLon,minLat],[maxLon,maxLat]]=item.b;
-   if(lat<minLat||lat>maxLat)continue;
-   const inLon=minLon<=maxLon?(lon>=minLon&&lon<=maxLon):(lon>=minLon||lon<=maxLon);
-   if(inLon&&d3.geoContains(item.feature,[lon,lat])){country=item.feature.id??item.feature.properties?.name??'land';break;}
+ if(!grid){
+  // Calcula a geografia na resolução original e subdivide cada quadrado em 3×3.
+  const baseGrid=[];
+  const bounds=(worldFeatures.length&&typeof d3!=='undefined'&&d3.geoBounds)?worldFeatures.map(feature=>({feature,b:d3.geoBounds(feature)})):[];
+  for(let y=0;y<BASE_H;y++)for(let x=0;x<BASE_W;x++){
+   const lon=-180+(x+.5)/BASE_W*360,lat=90-(y+.5)/BASE_H*180;
+   let country=null;
+   for(const item of bounds){
+    const [[minLon,minLat],[maxLon,maxLat]]=item.b;
+    if(lat<minLat||lat>maxLat)continue;
+    const inLon=minLon<=maxLon?(lon>=minLon&&lon<=maxLon):(lon>=minLon||lon<=maxLon);
+    if(inLon&&d3.geoContains(item.feature,[lon,lat])){country=item.feature.id??item.feature.properties?.name??'land';break;}
+   }
+   baseGrid.push(country);
   }
-  tiles.push({x,y,land:country!==null,country,owner:null,troops:0,capital:false,city:false,factory:false,port:false,adj:[]});
+  grid=Array.from({length:W*H},(_,i)=>baseGrid[Math.floor(Math.floor(i/W)/SUBDIV)*BASE_W+Math.floor((i%W)/SUBDIV)]);
  }
- buildAdjacency();
- try{localStorage.setItem(MAP_CACHE_KEY,JSON.stringify(tiles.map(t=>t.country)));}
+ tiles=grid.map((country,i)=>({x:i%W,y:Math.floor(i/W),land:country!==null,country,owner:null,troops:0,capital:false,city:false,factory:false,port:false}));
+ try{localStorage.setItem(MAP_CACHE_KEY,JSON.stringify(grid));}
  catch(err){console.warn('Não foi possível guardar o mapa preparado no navegador.',err);}
 }
 function tileAtLonLat(lon,lat){const x=Math.max(0,Math.min(W-1,Math.floor((lon+180)/360*W))),y=Math.max(0,Math.min(H-1,Math.floor((90-lat)/180*H)));return tiles[tileKey(x,y)];}
@@ -160,7 +170,7 @@ function placeNation(lon,lat,owner){
  if(!start)return null;
  const queue=[start],seen=new Set([start]);let placed=0;
  while(queue.length&&placed<5){const t=queue.shift();if(t.land&&!t.owner){t.owner=owner;t.troops=owner==='player'?12000:9000;placed++;if(placed===1)t.capital=true;}
-  for(const n of t.adj){if(!seen.has(n)&&n.land){seen.add(n);queue.push(n);}}
+  for(const n of adjacentTiles(t)){if(!seen.has(n)&&n.land){seen.add(n);queue.push(n);}}
  }
  return start;
 }
@@ -196,8 +206,8 @@ function setZoom(next,anchorX=canvas.clientWidth/2,anchorY=canvas.clientHeight/2
 function owned(){return tiles.filter(t=>t.land&&t.owner==='player')}
 function totalLand(){return tiles.filter(t=>t.land).length}
 function pct(){return owned().length/Math.max(1,totalLand())*100}
-function neighbors(t){return t.adj.filter(n=>n.land)}
-function reachable(t){return !!t&&(neighbors(t).some(n=>n.owner==='player')||(ports>0&&t.land&&t.adj.some(n=>!n.land)))}
+function neighbors(t){return adjacentTiles(t).filter(n=>n.land)}
+function reachable(t){return !!t&&(neighbors(t).some(n=>n.owner==='player')||(ports>0&&t.land&&adjacentTiles(t).some(n=>!n.land)))}
 function addLog(msg){logs.unshift(msg);logs=logs.slice(0,7);$('log').innerHTML=logs.map(x=>'<div>'+x+'</div>').join('');}
 function fmt(n){return Math.floor(n).toLocaleString('pt-BR')}
 function short(n){return n>=1000000?(n/1000000).toFixed(1).replace('.',',')+'M':Math.round(n/1000)+'K'}
@@ -214,7 +224,7 @@ function update(){
  $('attackBtn').disabled=!enabled||!land||selected.owner!=='enemy'||!near||troops<2000;
  $('cityBtn').disabled=!enabled||!own||selected.city||gold<100000;
  $('factoryBtn').disabled=!enabled||!own||selected.factory||gold<150000;
- $('portBtn').disabled=!enabled||!own||selected.port||gold<120000||!selected.adj.some(n=>!n.land);
+ $('portBtn').disabled=!enabled||!own||selected.port||gold<120000||!adjacentTiles(selected).some(n=>!n.land);
  $('passBtn').disabled=!enabled;
  }else $('selection').textContent='Inicie a campanha e selecione um território no mapa.';
  draw();
