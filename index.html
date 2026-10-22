@@ -111,7 +111,8 @@ function update(){
  draw();
 }
 function start(){if(running)return;if(!mapReady){addLog('Aguarde o carregamento dos dados geográficos reais.');return;}running=true;gameOver=false;seconds=0;troops=12000;gold=250000;cities=1;factories=0;ports=0;logs=[];enemyCount=5;
- initMap();
+ // Reutiliza a geografia calculada no carregamento; limpa apenas o estado da partida.
+ for(const t of tiles){t.owner=null;t.troops=0;t.capital=false;t.city=false;t.factory=false;t.port=false;}
  const cap=placeNation(-52,-10,'player');placeNation(-100,40,'enemy');placeNation(10,50,'enemy');placeNation(105,35,'enemy');placeNation(25,-29,'enemy');placeNation(135,-25,'enemy');
  if(!cap){running=false;addLog('Não foi possível iniciar: os dados geográficos reais não foram carregados.');$('startOverlay').style.display='grid';return;}
  cap.owner='player';cap.capital=true;cap.troops=troops;cap.city=true;selected=cap;
