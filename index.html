@@ -86,7 +86,7 @@ function owned(){return tiles.filter(t=>t.land&&t.owner==='player')}
 function totalLand(){return tiles.filter(t=>t.land).length}
 function pct(){return owned().length/Math.max(1,totalLand())*100}
 function neighbors(t){return t.adj.filter(n=>n.land)}
-function reachable(t){return !!t&&neighbors(t).some(n=>n.owner==='player')}
+function reachable(t){return !!t&&(neighbors(t).some(n=>n.owner==='player')||(ports>0&&t.land&&t.adj.some(n=>!n.land)))}
 function addLog(msg){logs.unshift(msg);logs=logs.slice(0,7);$('log').innerHTML=logs.map(x=>'<div>'+x+'</div>').join('');}
 function fmt(n){return Math.floor(n).toLocaleString('pt-BR')}
 function short(n){return n>=1000000?(n/1000000).toFixed(1).replace('.',',')+'M':Math.round(n/1000)+'K'}
@@ -103,7 +103,7 @@ function update(){
  $('attackBtn').disabled=!enabled||!land||selected.owner!=='enemy'||!near||troops<2000;
  $('cityBtn').disabled=!enabled||!own||selected.city||gold<100000;
  $('factoryBtn').disabled=!enabled||!own||selected.factory||gold<150000;
- $('portBtn').disabled=!enabled||!own||selected.port||gold<120000||!neighbors(selected).some(n=>!n.land);
+ $('portBtn').disabled=!enabled||!own||selected.port||gold<120000||!selected.adj.some(n=>!n.land);
  $('passBtn').disabled=!enabled;
  }else $('selection').textContent='Inicie a campanha e selecione um território no mapa.';
  draw();
